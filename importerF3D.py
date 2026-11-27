@@ -157,6 +157,39 @@ def read_manifest(f3d, path):
 
 	return folder
 
+def _zip_without_zstd(filename):
+	'''Fusion files saved since 2025 compress entries with Zstandard (zip method 93), which Python's
+	zipfile only reads from 3.14 on. Rewrite such archives as an uncompressed copy in the temp folder.'''
+	import os, struct, tempfile, zipfile
+	with zipfile.ZipFile(filename) as src:
+		infos = src.infolist()
+		if (not any(i.compress_type == 93 for i in infos)):
+			return filename
+		try:
+			from compression import zstd # Python 3.14+
+			decompress = lambda data, size: zstd.decompress(data)
+		except ImportError:
+			try:
+				import zstandard
+			except ImportError:
+				raise ImportError("This Fusion file uses Zstandard compression (zip method 93): install the Python package 'zstandard' for FreeCAD, or use a FreeCAD built with Python 3.14 or newer.")
+			dctx = zstandard.ZstdDecompressor()
+			decompress = lambda data, size: dctx.decompress(data, max_output_size=max(size, 1))
+		root = os.path.join(tempfile.gettempdir(), u"InventorLoader")
+		os.makedirs(root, exist_ok=True)
+		out = os.path.join(root, os.path.basename(filename))
+		with open(filename, 'rb') as raw, zipfile.ZipFile(out, 'w', zipfile.ZIP_STORED) as dst:
+			for i in infos:
+				if (i.compress_type == 93):
+					raw.seek(i.header_offset)
+					nlen, xlen = struct.unpack('<HH', raw.read(30)[26:30])
+					raw.seek(i.header_offset + 30 + nlen + xlen)
+					data = decompress(raw.read(i.compress_size), i.file_size)
+				else:
+					data = src.read(i)
+				dst.writestr(zipfile.ZipInfo(i.filename, date_time=i.date_time), data)
+	return out
+
 def read(filename):
 	global smb_files, smb_only, bulk_data, sketches, refs
 	smb_files.clear()
@@ -164,6 +197,8 @@ def read(filename):
 	sketches.clear()
 	refs = []
 	result = is_zipfile(filename)
+	if (result):
+		filename = _zip_without_zstd(filename)
 	data = None
 	meta = None
 	if (result):
