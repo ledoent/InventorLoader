@@ -204,7 +204,13 @@ def read(filename):
 	if (result):
 		setDumpFolder(filename)
 		f3d = ZipFile(filename)
-		folder = read_manifest(f3d, 'Manifest.dat')
+		try:
+			folder = read_manifest(f3d, 'Manifest.dat')
+		except Exception:
+			folder = None # newer (assembly) manifests are not understood
+		if (not folder) or (not any(n.startswith(folder + '[Active]/') for n in f3d.namelist())):
+			active = [n for n in f3d.namelist() if '[Active]/' in n]
+			folder = active[0].split('[Active]/')[0] if (active) else 'FusionAssetName'
 		folderPreview = folder + '[Active]/Previews/'
 		folderBreps   = folder + '[Active]/Breps.BlobParts/'
 		fileBulk      = folder + '[Active]/Design1/BulkStream.dat'
