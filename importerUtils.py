@@ -303,11 +303,12 @@ def chooseImportStrategyAcis():
 	msgBox.setDefaultButton(btnMapping[getStrategy()])
 
 	QApplication.setOverrideCursor(Qt.ArrowCursor)
-	result = msgBox.exec_()
+	msgBox.exec_()
 	QApplication.restoreOverrideCursor()
 
-	resultMapping = {0:STRATEGY_STEP, 1: STRATEGY_SAT, 2:STRATEGY_CANCEL}
-	strategy = resultMapping[result]
+	# exec_() returns an opaque value for custom buttons (Qt6 no longer returns the button index)
+	resultMapping = {btnCnvrt: STRATEGY_STEP, btnNativ: STRATEGY_SAT}
+	strategy = resultMapping.get(msgBox.clickedButton(), STRATEGY_CANCEL)
 	setStrategy(strategy)
 	return strategy
 
@@ -334,11 +335,12 @@ def chooseImportStrategy():
 	msgBox.setDefaultButton(btnMapping[getStrategy()])
 
 	QApplication.setOverrideCursor(Qt.ArrowCursor)
-	result = msgBox.exec_()
+	msgBox.exec_()
 	QApplication.restoreOverrideCursor()
 
-	resultMapping = {0:STRATEGY_STEP, 1: STRATEGY_SAT, 2:STRATEGY_NATIVE, 3:STRATEGY_CANCEL}
-	strategy = resultMapping[result]
+	# exec_() returns an opaque value for custom buttons (Qt6 no longer returns the button index)
+	resultMapping = {btnCnvrt: STRATEGY_STEP, btnSat: STRATEGY_SAT, btnNativ: STRATEGY_NATIVE}
+	strategy = resultMapping.get(msgBox.clickedButton(), STRATEGY_CANCEL)
 	setStrategy(strategy)
 	return strategy
 
@@ -866,7 +868,7 @@ def getText8(data, offset, l):
 	try:
 		txt = data[i: end].decode(ENCODING_FS)
 	except:
-		txt = data[i: end].decode('ansi')
+		txt = data[i: end].decode('cp1252', errors='replace') # 'ansi' is a Windows-only codec
 	if (txt[-1:] == '\0'):
 		txt = txt[:-1]
 
@@ -1020,7 +1022,11 @@ def cleanDumpFolder():
 def setDumpFolder(anyInputFile):
 	global _dump_folder
 	fileParts = os.path.splitext(anyInputFile)
-	_dump_folder = os.path.abspath(u"%s_%s" %(fileParts[0], fileParts[1][1:]))
+	# keep debug dumps in the temp folder, not next to the imported file
+	import tempfile
+	_dump_root = os.path.join(tempfile.gettempdir(), u"InventorLoader")
+	os.makedirs(_dump_root, exist_ok=True)
+	_dump_folder = os.path.join(_dump_root, u"%s_%s" %(os.path.basename(fileParts[0]), fileParts[1][1:]))
 
 	if (os.path.exists(_dump_folder)):
 		cleanDumpFolder()
