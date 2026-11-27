@@ -14,6 +14,7 @@ from importerConstants import VAL_DATETIME, VAL_ENUM, VAL_GUESS, VAL_REF, VAL_ST
 import traceback
 
 smb_files = []
+smb_only  = []
 bulk_data = None
 meta_data = None
 
@@ -75,6 +76,8 @@ def _dump_SMB(f3d, path):
 				dumpSat(name[0:name.rfind('.')], reader)
 				if (name[-3:].lower() != 'smb'):
 					smb_files.append(reader)
+				else:
+					smb_only.append(reader) # newer Fusion files store the B-rep only as .smb
 	return result
 
 def get_manifest_item(data, offset):
@@ -155,8 +158,9 @@ def read_manifest(f3d, path):
 	return folder
 
 def read(filename):
-	global smb_files, bulk_data, sketches, refs
+	global smb_files, smb_only, bulk_data, sketches, refs
 	smb_files.clear()
+	smb_only.clear()
 	sketches.clear()
 	refs = []
 	result = is_zipfile(filename)
@@ -177,6 +181,8 @@ def read(filename):
 				if (_dump_SMB(f3d, name)):
 					result = True
 
+		if (not smb_files):
+			smb_files.extend(smb_only)
 		bulk_data = (data, meta)
 		f3d.close()
 	return result
